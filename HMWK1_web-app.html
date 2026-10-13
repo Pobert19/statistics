@@ -61,9 +61,9 @@
 </main>
 
 <script>
-const P = 17;      // modulo
-const A = 0;       // coefficiente a
-const B = 7;       // coefficiente b
+const P = 17;
+const A = 0;
+const B = 7;
 const mod = (n) => ((n % P) + P) % P;
 
 function inv(a) {
@@ -81,13 +81,13 @@ const onCurve = (Pt) => Pt === null || mod(Pt.y * Pt.y) === mod(Pt.x ** 3 + A * 
 function add(P1, P2) {
   if (P1 === null) return P2;
   if (P2 === null) return P1;
-  if (P1.x === P2.x && mod(P1.y + P2.y) === 0) return null; // P + (-P) = infinito
+  if (P1.x === P2.x && mod(P1.y + P2.y) === 0) return null;
 
   let lambda;
   if (P1.x === P2.x && P1.y === P2.y) {
-    lambda = mod((3 * P1.x * P1.x + A) * inv(2 * P1.y));    // raddoppio (tangente)
+    lambda = mod((3 * P1.x * P1.x + A) * inv(2 * P1.y));
   } else {
-    lambda = mod((P2.y - P1.y) * inv(P2.x - P1.x));          // secante
+    lambda = mod((P2.y - P1.y) * inv(P2.x - P1.x));
   }
   const x3 = mod(lambda * lambda - P1.x - P2.x);
   const y3 = mod(lambda * (P1.x - x3) - P1.y);
@@ -105,7 +105,7 @@ function scalarMul(k, G, log) {
     } else {
       log?.push(`bit ${bits.length - 1 - i} = 0 → nessuna somma`);
     }
-    addend = add(addend, addend); // raddoppio: G, 2G, 4G, 8G, ...
+    addend = add(addend, addend); 
   }
   return result;
 }
