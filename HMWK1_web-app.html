@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toy ECC: chiave privata → chiave pubblica</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --text:#1c2230; --accent:#4f46e5; --muted:#6b7280; --ok:#059669; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151d; --card:#1b2030; --text:#e6e9f2; --accent:#818cf8; --muted:#9aa3b5; --ok:#34d399; }
+  }
+  body { font-family: system-ui, sans-serif; background:var(--bg); color:var(--text); margin:0; padding:24px; }
+  main { max-width:760px; margin:0 auto; }
+  .card { background:var(--card); border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+  h1 { font-size:1.4rem; margin-top:0; }
+  code, pre { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  label { margin-right:12px; }
+  input { width:70px; padding:6px; border-radius:6px; border:1px solid var(--muted); background:transparent; color:var(--text); }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 16px; cursor:pointer; font-size:1rem; }
+  table { border-collapse:collapse; width:100%; margin-top:10px; }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid rgba(128,128,128,.25); font-family:ui-monospace, monospace; }
+  tr.last td { color:var(--ok); font-weight:bold; }
+  .result { font-size:1.2rem; color:var(--ok); font-weight:bold; font-family:ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>Toy ECC: chiave privata → chiave pubblica</h1>
+    <p class="muted">Curva giocattolo <code>y² = x³ + 7 (mod 17)</code>
+    </p>
+    <label>p = <input id="p" type="number" value="17" disabled></label>
+    <label>G = (<input id="gx" type="number" value="1">, <input id="gy" type="number" value="5">)</label>
+    <label>k = <input id="k" type="number" value="6" min="1"></label>
+    <button id="run">Calcola</button>
+  </div>
+
+  <div class="card">
+    <h2>Chiave pubblica giocattolo</h2>
+    <div id="pub" class="result">—</div>
+    <p id="info" class="muted"></p>
+  </div>
+
+  <div class="card">
+    <h2>Metodo lento: G, 2G, 3G, …, kG  O(k)</h2>
+    <table id="steps"></table>
+  </div>
+
+  <div class="card">
+    <h2>Metodo veloce: double-and-add  O(log k)</h2>
+    <pre id="fast" class="muted"></pre>
+  </div>
+  <div class="card">
+    <h2>Proprietà statistiche della funzione</h2>
+    <ul>
+      <li>Distribuzione: I punti pubblici non sono necessariamente uniformi se si scelgono chiavi private arbitrarie, soprattutto se il generatore ha ordine piccolo.</li>
+      <li>Determinismo: se si esegue la funzione piu' volte con gli stessi valori di k e G il risultato non cambia</li>
+    </ul>
+  </div>
+</main>
+
+<script>
+const P = 17;      // modulo
+const A = 0;       // coefficiente a
+const B = 7;       // coefficiente b
+const mod = (n) => ((n % P) + P) % P;
+
+function inv(a) {
+  let result = 1, base = mod(a), e = P - 2;
+  while (e > 0) {
+    if (e & 1) result = (result * base) % P;
+    base = (base * base) % P;
+    e >>= 1;
+  }
+  return result;
+}
+
+const onCurve = (Pt) => Pt === null || mod(Pt.y * Pt.y) === mod(Pt.x ** 3 + A * Pt.x + B);
+
+function add(P1, P2) {
+  if (P1 === null) return P2;
+  if (P2 === null) return P1;
+  if (P1.x === P2.x && mod(P1.y + P2.y) === 0) return null; // P + (-P) = infinito
+
+  let lambda;
+  if (P1.x === P2.x && P1.y === P2.y) {
+    lambda = mod((3 * P1.x * P1.x + A) * inv(2 * P1.y));    // raddoppio (tangente)
+  } else {
+    lambda = mod((P2.y - P1.y) * inv(P2.x - P1.x));          // secante
+  }
+  const x3 = mod(lambda * lambda - P1.x - P2.x);
+  const y3 = mod(lambda * (P1.x - x3) - P1.y);
+  return { x: x3, y: y3 };
+}
+
+function scalarMul(k, G, log) {
+  let result = null, addend = G;
+  const bits = k.toString(2);
+  for (let i = bits.length - 1; i >= 0; i--) {
+    const bit = bits[i];
+    if (bit === '1') {
+      result = add(result, addend);
+      log?.push(`bit ${bits.length - 1 - i} = 1 → somma:   result = ${fmt(result)}`);
+    } else {
+      log?.push(`bit ${bits.length - 1 - i} = 0 → nessuna somma`);
+    }
+    addend = add(addend, addend); // raddoppio: G, 2G, 4G, 8G, ...
+  }
+  return result;
+}
+
+const fmt = (Pt) => Pt === null ? 'O (infinito)' : `(${Pt.x}, ${Pt.y})`;
+
+// ---------- Interfaccia ----------
+document.getElementById('run').addEventListener('click', () => {
+  const G = { x: +document.getElementById('gx').value, y: +document.getElementById('gy').value };
+  const k = +document.getElementById('k').value;
+
+  if (!onCurve(G)) {
+    document.getElementById('pub').textContent = 'G non appartiene alla curva!';
+    return;
+  }
+
+  // Metodo lento: G, 2G, ..., kG
+  const table = document.getElementById('steps');
+  table.innerHTML = '<tr><th>n</th><th>nG</th></tr>';
+  let current = null;
+  for (let n = 1; n <= k; n++) {
+    current = add(current, G);
+    const tr = document.createElement('tr');
+    if (n === k) tr.className = 'last';
+    tr.innerHTML = `<td>${n}</td><td>${fmt(current)}</td>`;
+    table.appendChild(tr);
+  }
+
+  // Metodo veloce
+  const log = [`k = ${k} = ${k.toString(2)} (binario)`];
+  const fast = scalarMul(k, G, log);
+  log.push(`\nRisultato double-and-add: ${fmt(fast)}`);
+  document.getElementById('fast').textContent = log.join('\n');
+
+  // Chiave pubblica
+  document.getElementById('pub').textContent = `Q = ${k}·G = ${fmt(current)}`;
+
+});
+
+document.getElementById('run').click();
+</script>
+</body>
+</html>

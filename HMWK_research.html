@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>From Wallet Seed to Ethereum Address</title>
+    <style>
+        :root {
+            color-scheme: light;
+            box-sizing: border-box;
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        html {
+            scroll-padding-top: env(safe-area-inset-top, 0px);
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        body {
+            margin: 0;
+            background: #fff;
+            color: #1a1a1a;
+            font: 17px/1.65 Georgia, "Times New Roman", serif;
+        }
+        main {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 48px 22px 80px;
+        }
+        h1 {
+            font-size: 2rem;
+            line-height: 1.25;
+            margin: 0 0 6px;
+        }
+        .sub {
+            color: #555;
+            margin: 0 0 32px;
+            font-style: italic;
+        }
+        h2 {
+            font-size: 1.35rem;
+            margin: 42px 0 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #ddd;
+        }
+        h3 {
+            font-size: 1.05rem;
+            margin: 24px 0 6px;
+        }
+        p {
+            margin: 0 0 14px;
+        }
+        code, pre {
+            font-family: Menlo, Consolas, monospace;
+            font-size: .88em;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 1px 5px;
+            border-radius: 3px;
+        }
+        pre {
+            background: #f7f7f7;
+            border: 1px solid #e5e5e5;
+            padding: 14px;
+            overflow-x: auto;
+            border-radius: 4px;
+        }
+        ul {
+            padding-left: 22px;
+            margin: 0 0 14px;
+        }
+        li {
+            margin-bottom: 6px;
+        }
+        .note {
+            border-left: 3px solid #999;
+            padding: 4px 14px;
+            color: #444;
+            margin: 16px 0;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+<main>
+
+    <h1>From Wallet Seed to Ethereum Address</h1>
+    <p class="sub">Hashing, key derivation and cryptographic primitives in the Ethereum wallet pipeline</p>
+
+    <h2>1. Overview</h2>
+    <p>An Ethereum wallet is, at its core, a deterministic program that turns one secret (a random number, shown to the user as a mnemonic phrase) into an unlimited family of accounts. No single algorithm does everything: the pipeline chains several primitives, each solving a different problem: encoding randomness for humans, stretching it into a seed, deriving a tree of keys, linking private and public keys, compressing the public key into a short identifier, and protecting that identifier against typos.</p>
+
+    <h2>2. The standards and primitives</h2>
+
+    <h3>BIP-39 — mnemonic sentence and seed</h3>
+    <p>Entropy of ENT bits (128 to 256) is extended with a checksum made of the first ENT/32 bits of its SHA-256 hash. The result is cut into 11-bit groups, each indexing a 2048-word list: 128 + 4 = 132 bits gives 12 words, 256 + 8 = 264 bits gives 24 words. The mnemonic is then converted into a seed with <code>PBKDF2-HMAC-SHA512</code>, using the mnemonic as the password, the string <code>"mnemonic" + passphrase</code> as salt, 2048 iterations and a 512-bit output. The optional passphrase (the "25th word") produces a completely different wallet; an empty passphrase is the default. Note that the word list is an <em>encoding</em> of the entropy, not an encryption of it.</p>
+
+    <h3>BIP-32 — hierarchical deterministic (HD) derivation</h3>
+    <p>The master node comes from <code>I = HMAC-SHA512(key="Bitcoin seed", data=seed)</code>: the left 256 bits are the master private key, the right 256 bits the chain code. A child is computed as <code>I = HMAC-SHA512(chain_code_parent, data‖index)</code>, with child key <code>(I_L + k_parent) mod n</code> and the new chain code <code>I_R</code>. Indexes ≥ 2<sup>31</sup> are <em>hardened</em>: the data includes the parent private key, so a leaked child key plus the parent public key cannot reveal siblings. Non-hardened indexes use the parent public key, which enables watch-only wallets (xpub). The whole tree is reproducible from the single seed, so only one backup is needed.</p>
+
+    <h3>BIP-44 — standard derivation paths</h3>
+    <p>BIP-44 fixes the meaning of the levels: <code>m / purpose' / coin_type' / account' / change / address_index</code>. Ethereum uses coin type 60 (registered in SLIP-44), so the first account of most wallets is <code>m/44'/60'/0'/0/0</code>, the second <code>m/44'/60'/0'/0/1</code>, and so on. Thanks to this convention the same mnemonic gives the same addresses in MetaMask, Rabby, Rainbow, Exodus or a hardware wallet. (Some wallets use variants such as Ledger Live's <code>m/44'/60'/x'/0/0</code>, which is why imports sometimes show "different" addresses.)</p>
+
+    <h3>secp256k1 — elliptic-curve public-key cryptography</h3>
+    <p>secp256k1 is the curve <code>y² = x³ + 7</code> over the prime field with <code>p = 2²⁵⁶ − 2³² − 977</code>, with a fixed generator point G of prime order n ≈ 2²⁵⁶. The public key is <code>K = k·G</code> (scalar multiplication). Computing K from k is fast; recovering k from K is the elliptic-curve discrete logarithm problem, believed to need about 2¹²⁸ operations. Ethereum uses it for ECDSA signatures with public-key recovery: a transaction signature (r, s, v) lets nodes recover the signer's public key, and hence the sender address, without it being transmitted.</p>
+
+    <h3>Keccak-256 — the hash function</h3>
+    <p>Keccak is a sponge construction (rate 1088 bits, capacity 512 bits for the 256-bit variant). Ethereum computes <code>address = last 20 bytes of Keccak-256(X‖Y)</code>, where X‖Y are the 64 bytes of the uncompressed public key without the <code>0x04</code> prefix. Hashing here gives a shorter identifier (160 instead of 512 bits) and hides the public key until the account first signs a transaction.</p>
+
+    <h3>EIP-55 — mixed-case checksum</h3>
+    <p>Take the lowercase hex address (no <code>0x</code>) as ASCII text and compute its Keccak-256. For each hex <em>letter</em> at position i, write it in uppercase if the i-th hex digit of the hash is ≥ 8, otherwise lowercase. Digits are unaffected. The address stays backward compatible (all-lowercase still parses), but a wallet can now detect most typos by recomputing the casing. The EIP estimates about 15 check bits per address on average and a probability of roughly 0.0247% that a random mistyping passes unnoticed.</p>
+
+    <h2>3. Chronological context</h2>
+
+    <ul>
+        <li><strong>1977 — RSA.</strong> First widely used public-key scheme (factoring). Ethereum does not use it, but it opened the era of asymmetric cryptography; elliptic curves (1985, Koblitz and Miller) later offered the same security with much shorter keys.</li>
+
+        <li><strong>2001 — SHA-2 / SHA-512.</strong> NIST hash family (Merkle–Damgård). Used inside PBKDF2 and HMAC for BIP-32/39, and SHA-256 for Bitcoin.</li>
+
+        <li><strong>2012 — BIP-32.</strong> HD wallets: one seed, a tree of keys. (Keccak also wins the NIST SHA-3 competition in 2012.)</li>
+
+        <li><strong>2013 — BIP-39.</strong> Human-readable mnemonic and seed generation.</li>
+
+        <li><strong>2014 — BIP-44.</strong> Multi-account, multi-coin path convention.</li>
+
+        <li><strong>2015 — SHA-3 (FIPS 202).</strong> Standardization of Keccak. Ethereum went live in 2015 using the <em>original</em> Keccak, before the final padding change.</li>
+
+        <li><strong>2016 — EIP-55.</strong> Mixed-case checksum for addresses.</li>
+    </ul>
+
+    <p>The order reflects a logic: first public-key cryptography and hash standards, then wallet key-management conventions built on top of them (2012–2014), then Ethereum's own address layer (2015–2016). Ethereum therefore reused Bitcoin-era wallet standards unchanged (BIP-32/39/44, secp256k1) and replaced only the address derivation (Keccak-256 instead of SHA-256 + RIPEMD-160 + Base58Check).</p>
+
+    <h2>4. SHA-2 / SHA-512 versus Keccak / SHA-3</h2>
+
+    <p>Both are cryptographic hash functions but with different internal designs. SHA-2 (including SHA-512) is a Merkle–Damgård construction with a compression function; it is exposed to length-extension attacks unless wrapped (e.g. in HMAC). Keccak is a sponge: input is absorbed into a 1600-bit state and output is squeezed out; it is not vulnerable to length extension and was chosen as SHA-3 in a public competition as a structurally different fallback to SHA-2.</p>
+
+    <p>Keccak-256 is <strong>not</strong> identical to NIST's SHA3-256. When NIST standardized SHA-3 it appended the domain-separation bits <code>01</code> to the message before the usual pad10*1 padding (the first padding byte becomes <code>0x06</code> instead of <code>0x01</code>). Ethereum had already adopted the pre-standard version. The permutation is the same, but the outputs differ:</p>
+
+    <pre>Keccak-256("")  = c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+SHA3-256("")    = a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a</pre>
+
+    <p>Practical consequence: using a library's <code>sha3_256</code> instead of <code>keccak256</code> yields wrong addresses. In Ethereum tooling, "sha3" in old Solidity/web3 code usually means Keccak-256.</p>
+
+    <h2>5. Statistical and security properties</h2>
+
+    <ul>
+        <li><strong>Entropy and uniformity.</strong> A 128-bit mnemonic has 2¹²⁸ possibilities, a 256-bit one 2²⁵⁶. Security equals the entropy of the source, so the CSPRNG must be uniform; human-chosen phrases or "brain wallets" are statistically weak and are brute-forced in practice.</li>
+
+        <li><strong>BIP-39 checksum.</strong> Four bits (12 words) mean a random word sequence is valid with probability 1/16, so 15 of 16 random typos are detected; 24 words use 8 bits (1/256). It detects errors but adds no security.</li>
+
+        <li><strong>Key stretching.</strong> 2048 PBKDF2 iterations slow an attacker only about 2¹¹ times: negligible for random mnemonics, but it matters when a weak passphrase is used.</li>
+
+        <li><strong>Pseudo-randomness of derivation.</strong> HMAC-SHA512 outputs are computationally indistinguishable from random. The chance that a derived I<sub>L</sub> is ≥ n or equals 0 is about 2⁻¹²⁷, i.e. practically never (the spec says to skip that index).</li>
+
+        <li><strong>Private keys.</strong> Uniform in [1, n−1], n ≈ 2²⁵⁶; the search space is far beyond brute force. Best known attacks on the curve (Pollard rho) cost about √n ≈ 2¹²⁸.</li>
+
+        <li><strong>Avalanche effect.</strong> Flipping one input bit of Keccak-256 flips each output bit with probability ≈ 1/2. Neighbouring keys give unrelated addresses, so addresses leak nothing about the key or about each other.</li>
+
+        <li><strong>Address collisions.</strong> The address is 160 bits: preimage resistance ≈ 2¹⁶⁰, collision (birthday bound) ≈ 2⁸⁰. Accidental collisions are negligible; targeted ones would need ≈ 2⁸⁰ work, a long-term concern but far from practical today.</li>
+
+        <li><strong>EIP-55.</strong> A 40-hex-digit address has on average 40 × 6/16 = 15 letters, so about 15 check bits; each letter's case is a quasi-random function of the hash. Errors that change digits only, or addresses with few letters, get weaker protection.</li>
+    </ul>
+
+    <h2>6. Why several primitives instead of one</h2>
+
+    <p>Each step has different requirements, and no single algorithm satisfies all of them:</p>
+
+    <ul>
+        <li><strong>BIP-39 / BIP-32 / BIP-44 → key management.</strong> Need determinism, backup in a human-friendly form, and structure (accounts, coins). Hash/KDF functions, not signature schemes, are the right tool.</li>
+
+        <li><strong>secp256k1 → key relation and signatures.</strong> Need a one-way <em>structured</em> relation between a secret and a public value so that anyone can verify a signature without learning the secret. Hash functions cannot do this.</li>
+
+        <li><strong>Keccak-256 → hashing.</strong> Need fixed-size, unstructured, collision-resistant compression of the public key into a short identifier. Elliptic curves cannot do this.</li>
+
+        <li><strong>EIP-55 → error detection.</strong> Need a few redundant bits that fit inside an existing format without changing it. Neither signatures nor hashes alone give typo detection; here the hash is reused as the source of check bits.</li>
+    </ul>
+
+    <p>This is the principle of separation of concerns: each layer can be audited, replaced or upgraded independently (for example a future post-quantum signature scheme would replace secp256k1 but not the mnemonic layer).</p>
+
+    <h2>7. Hands-on experiments with wallets</h2>
+
+    <ul>
+        <li>Generate a <em>throw-away</em> mnemonic and import it into MetaMask, Rabby and Rainbow: the first address is the same everywhere (same BIP-44 path). Exodus and hardware wallets may differ if they use other paths.</li>
+
+        <li>Add a new account: it is the next <code>address_index</code> in <code>m/44'/60'/0'/0/i</code>, derived from the same seed. Use an offline BIP-39 tool (e.g. Ian Coleman's, run locally) to display seed, xprv, path and address side by side.</li>
+
+        <li>Import the same mnemonic with a passphrase: a completely different set of addresses appears.</li>
+
+        <li>Take an address, change the case of one letter, and paste it into a send field: the wallet should warn about an invalid checksum. An all-lowercase address is accepted without check.</li>
+
+        <li>Change one word of the mnemonic: wallets reject it ≈ 15 times out of 16 because of the BIP-39 checksum.</li>
+    </ul>
+
+    <p>Public test vector (never use it for funds, it is public and monitored): mnemonic <code>abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about</code>, empty passphrase, path <code>m/44'/60'/0'/0/0</code> gives <code>0x9858EfFD232B4033E47d90003D41EC34EcaEda94</code>.</p>
+
+    <h2>8. Conclusion</h2>
+
+    <p>The Ethereum wallet pipeline is a composition of well-separated tools: BIP-39 turns randomness into a memorable secret and a seed; BIP-32 and BIP-44 deterministically derive an organized tree of private keys; secp256k1 provides the public/private relation and signatures; Keccak-256 compresses public keys into 20-byte identifiers; EIP-55 adds typo protection by encoding checksum bits in letter casing. Real security comes from a single source: the unpredictability of the initial entropy, and from keeping the mnemonic and passphrase secret.</p>
+
+</main>
+</body>
+</html>
