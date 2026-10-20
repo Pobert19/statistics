@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homework 2: ECC giocattolo, Cesare e crittoanalisi</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#1c2230;--accent:#4f46e5;--muted:#6b7280;--ok:#059669;--bad:#dc2626;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151d;--card:#1b2030;--text:#e6e9f2;--accent:#818cf8;--muted:#9aa3b5;--ok:#34d399;--bad:#f87171;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12151d;--card:#1b2030;--text:#e6e9f2;--accent:#818cf8;--muted:#9aa3b5;--ok:#34d399;--bad:#f87171;color-scheme:dark}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px}
+main{max-width:820px;margin:0 auto}
+.card{background:var(--card);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+h1{font-size:1.4rem;margin-top:0}h2{font-size:1.1rem;margin-top:0}
+code,pre,.m{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem}
+.muted{color:var(--muted);font-size:.9rem}
+label{margin-right:12px;display:inline-block;margin-bottom:6px}
+input,select,textarea{padding:6px;border-radius:6px;border:1px solid var(--muted);background:transparent;color:var(--text);max-width:100%;box-sizing:border-box}
+textarea{width:100%;font-size:.8rem}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:.95rem;margin:4px 6px 4px 0}
+.w{overflow-x:auto}
+table{border-collapse:collapse;width:100%;margin-top:8px}
+th,td{text-align:left;padding:4px 8px;border-bottom:1px solid rgba(128,128,128,.25);font-family:ui-monospace,monospace;font-size:.8rem}
+tr.best td{color:var(--ok);font-weight:bold}
+.out{word-break:break-all;margin:4px 0}.ok{color:var(--ok)}.bad{color:var(--bad)}
+li{margin-bottom:5px}
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+<h1>Homework 2: ECC giocattolo, Cesare e crittoanalisi</h1>
+<p class="muted">Curva reale secp256k1 (<code>y² = x³ + 7</code> mod p, p = 2²⁵⁶ − 2³² − 977) con aritmetica BigInt. La chiave privata è ristretta a <code>[1, K]</code>.</p>
+<label>Messaggio (max 32 byte) <input id="msg" value="ATTACCO ALL’ALBA" size="24"></label>
+</div>
+
+<div class="card">
+<h2>1. Cifratura ECC (stile ECIES giocattolo)</h2>
+<label>chiave privata d <input id="d" type="number" value="12345" min="1" style="width:100px"></label>
+<label>spazio chiavi K <select id="K"><option value="4096">2¹²</option><option value="65536" selected>2¹⁶</option><option value="1048576">2²⁰</option></select></label>
+<button id="enc">Cifra</button><button id="dec">Decifra con d</button>
+<div class="out m" id="eccOut"></div>
+<ol class="muted">
+<li><b>Chiavi</b>: privata <code>d</code> (intero), pubblica <code>Q = d·G</code>.</li>
+<li><b>Cifratura</b> (serve solo Q): scegli <code>r</code> casuale, calcola <code>C1 = r·G</code> e il segreto condiviso <code>S = r·Q</code>. Il testo cifrato è <code>C2 = m ⊕ x(S)</code> (byte della coordinata x). Si invia <code>(C1, C2)</code>.</li>
+<li><b>Decifratura</b> (serve d): <code>d·C1 = d·r·G = r·Q = S</code>, quindi <code>m = C2 ⊕ x(S)</code>.</li>
+</ol>
+</div>
+
+<div class="card">
+<h2>2. Cifrario di Cesare</h2>
+<label>chiave k (0–25) <input id="ck" type="number" value="7" min="0" max="25"></label>
+<button id="cenc">Cifra</button><button id="cdec">Decifra</button>
+<div class="out m" id="cOut"></div>
+</div>
+
+<div class="card">
+<h2>3. Crittoanalisi statistica di Cesare</h2>
+<p class="muted">Il modello (frequenze delle lettere e dei bigrammi) è addestrato sul corpus qui sotto. Sostituiscilo con un testo molto più lungo per risultati migliori.</p>
+<textarea id="corpus" rows="6"></textarea>
+<button id="atk">Attacca il cifrato del punto 2</button><button id="test">Test per lunghezza</button>
+<div class="out m" id="atkOut"></div>
+<div class="w"><table id="atkT"></table></div>
+</div>
+
+<div class="card">
+<h2>4. Attacco alla chiave privata ECC ristretta</h2>
+<p class="muted">Dato Q (pubblico) si cerca d in [1, K]: ricerca esaustiva O(K) e baby-step giant-step O(√K) tempo e memoria. Poi si decifra.</p>
+<button id="eatk">Attacca Q cifrato al punto 1</button>
+<div class="out m" id="eatkOut"></div>
+</div>
+
+<div class="card">
+<h2>5. Confronto e discussione</h2>
+<ul>
+<li><b>Procedure</b>: Cesare è simmetrico (stessa chiave k per cifrare e decifrare, sostituzione lettera per lettera). L’ECC è asimmetrico: si cifra con la pubblica Q e si decifra con la privata d; il messaggio è mascherato da un segreto condiviso derivato da un punto della curva.</li>
+<li><b>Spazio delle chiavi</b>: Cesare ha solo 26 chiavi. L’ECC giocattolo ha K chiavi (qui fino a 2²⁰), ma con secp256k1 completo sarebbero circa 2²⁵⁶.</li>
+<li><b>Proprietà statistiche</b>: Cesare è una sostituzione monoalfabetica, quindi conserva la distribuzione delle lettere (solo traslata): il cifrato è molto lontano dall’uniforme e rivela la chiave. Nel cifrato ECC ogni byte è mascherato da byte di x(S), quindi appare uniforme e non ci sono frequenze da sfruttare. Con un r diverso a ogni messaggio, lo stesso testo produce cifrati diversi (probabilistico), mentre Cesare è deterministico.</li>
+<li><b>Differenza tra gli attacchi</b>: contro Cesare si sfrutta la statistica del linguaggio nel testo cifrato; contro l’ECC ristretto si sfrutta la struttura algebrica, cioè Q = d·G e il fatto che d sia in un intervallo piccolo. Il cifrato non dà informazioni statistiche.</li>
+<li><b>Perché non scala</b>: con d su 256 bit, la ricerca esaustiva costa ~2²⁵⁶ operazioni, mentre BSGS e Pollard rho costano ~2¹²⁸ (tempo, e per BSGS anche memoria), fuori portata. Per K = 2¹⁶ bastano circa 2⁸ passaggi.</li>
+<li><b>Debolezze dello schema giocattolo, indipendenti da K</b>: (i) nessuna KDF: x(S) è usata direttamente come keystream; (ii) nessuna autenticazione, quindi il cifrato è malleabile (flip di bit del messaggio); (iii) se r viene riusato o è in un intervallo piccolo, C1 permette di ricavare r (attacco analogo) e due cifrati con lo stesso r danno <code>m₁ ⊕ m₂</code> (two-time pad); (iv) messaggio limitato a 32 byte; (v) generazione casuale non sicura (qui basata su getRandomValues, ma solo 32 bit per r).</li>
+<li><b>Debolezze da K piccolo</b>: recupero di d da Q con BSGS, rho o ricerca esaustiva; lo stesso vale per r da C1.</li>
+</ul>
+</div>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+/* ---------- ECC secp256k1 ---------- */
+const P=2n**256n-2n**32n-977n;
+const G={x:0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n,y:0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n};
+const md=a=>((a%P)+P)%P;
+function inv(a){a=md(a);let r0=P,r1=a,s0=0n,s1=1n;while(r1){const q=r0/r1;[r0,r1]=[r1,r0-q*r1];[s0,s1]=[s1,s0-q*s1];}return md(s0);}
+function add(A,B){
+ if(!A)return B;if(!B)return A;
+ if(A.x===B.x&&md(A.y+B.y)===0n)return null;
+ const l=A.x===B.x?md(3n*A.x*A.x*inv(2n*A.y)):md((B.y-A.y)*inv(B.x-A.x));
+ const x=md(l*l-A.x-B.x);return{x,y:md(l*(A.x-x)-A.y)};
+}
+function mul(k,Pt){let r=null,a=Pt;while(k>0n){if(k&1n)r=add(r,a);a=add(a,a);k>>=1n;}return r;}
+const neg=Pt=>({x:Pt.x,y:md(-Pt.y)});
+const eq=(A,B)=>A&&B&&A.x===B.x&&A.y===B.y;
+const xb=x=>{const h=x.toString(16).padStart(64,'0');return Array.from({length:32},(_,i)=>parseInt(h.substr(2*i,2),16));};
+const hex=b=>b.map(v=>v.toString(16).padStart(2,'0')).join('');
+const fp=Pt=>Pt?'('+Pt.x.toString(16).slice(0,10)+'…, '+Pt.y.toString(16).slice(0,10)+'…)':'O';
+let st=null;
+function msgBytes(){const b=Array.from(new TextEncoder().encode($('msg').value));if(b.length>32||!b.length)throw new Error('Messaggio: da 1 a 32 byte.');return b;}
+function rnd32(){const a=new Uint32Array(1);crypto.getRandomValues(a);return BigInt(a[0])||1n;}
+$('enc').onclick=()=>{try{
+ const d=BigInt($('d').value),K=BigInt($('K').value);
+ if(d<1n||d>K){$('eccOut').innerHTML='<span class="bad">d deve stare in [1, K].</span>';return;}
+ const m=msgBytes(),Q=mul(d,G),r=rnd32(),C1=mul(r,G),S=mul(r,Q),ks=xb(S.x);
+ const C2=m.map((v,i)=>v^ks[i]);st={Q,C1,C2,d,K};
+ $('eccOut').innerHTML=`Q = d·G = ${fp(Q)}<br>r (casuale, effimero) = ${r}<br>C1 = r·G = ${fp(C1)}<br>S = r·Q, x(S) = ${S.x.toString(16).slice(0,16)}…<br>C2 (hex) = ${hex(C2)}`;
+}catch(e){$('eccOut').textContent=e.message;}};
+function eccDecrypt(d){const S=mul(d,st.C1),ks=xb(S.x);return new TextDecoder().decode(new Uint8Array(st.C2.map((v,i)=>v^ks[i])));}
+$('dec').onclick=()=>{if(!st){$('eccOut').textContent='Prima cifra.';return;}$('eccOut').innerHTML+=`<br><span class="ok">Decifrato con d = ${st.d}: «${eccDecrypt(st.d)}»</span>`;};
+
+/* ---------- Cesare ---------- */
+const shift=(s,k)=>s.replace(/[a-z]/gi,c=>{const b=c<'a'?65:97;return String.fromCharCode((((c.charCodeAt(0)-b+k)%26)+26)%26+b);});
+let cct='';
+const clean=s=>s.normalize('NFD').replace(/[^a-zA-Z]/g,'').toUpperCase();
+$('cenc').onclick=()=>{const k=+$('ck').value;cct=shift($('msg').value.normalize('NFD').replace(/[\u0300-\u036f]/g,''),k);$('cOut').innerHTML=`Cifrato (k=${k}): ${cct}`;};
+$('cdec').onclick=()=>{if(!cct){$('cOut').textContent='Prima cifra.';return;}$('cOut').innerHTML+=`<br><span class="ok">Decifrato: ${shift(cct,-(+$('ck').value))}</span>`;};
+
+/* ---------- Crittoanalisi ---------- */
+$('corpus').value=`La crittografia è la scienza che studia i metodi per rendere un messaggio incomprensibile a chi non possiede la chiave. Fin dall’antichità gli eserciti hanno usato cifrari semplici per proteggere gli ordini inviati ai comandanti lontani. Giulio Cesare spostava ogni lettera di alcune posizioni nell’alfabeto, e questo bastava per ingannare chi non conosceva il metodo. Con il passare dei secoli i matematici hanno capito che ogni lingua ha una struttura precisa: alcune lettere compaiono molto più spesso di altre, e certe coppie di lettere sono comuni mentre altre non si incontrano quasi mai. Proprio questa regolarità permette di rompere i cifrari che sostituiscono sempre la stessa lettera con la stessa lettera. Oggi la sicurezza dei sistemi moderni non dipende più dalla segretezza dell’algoritmo ma dalla difficoltà di problemi matematici, come il logaritmo discreto sulle curve ellittiche, e da chiavi abbastanza grandi da rendere impossibile ogni ricerca esaustiva.`;
+const TEST=`Nella notte la città dorme e le strade sono vuote, soltanto il vento muove le foglie sugli alberi vicino al fiume. Un vecchio cammina lentamente verso casa con un libro sotto il braccio e pensa a tutto quello che è successo durante la giornata. Domani partirà per un lungo viaggio verso il mare, dove incontrerà alcuni amici che non vede da molti anni.`;
+let M=null;
+function train(){
+ const t=clean($('corpus').value).split('').map(c=>c.charCodeAt(0)-65);
+ const u=Array(26).fill(1),b=Array.from({length:26},()=>Array(26).fill(.5));
+ t.forEach((c,i)=>{u[c]++;if(i)b[t[i-1]][c]++;});
+ const su=u.reduce((a,c)=>a+c,0);
+ M={f:u.map(v=>v/su),lb:b.map(r=>{const s=r.reduce((a,c)=>a+c,0);return r.map(v=>Math.log(v/s));})};
+}
+function chi(t){const n=t.length,c=Array(26).fill(0);t.forEach(v=>c[v]++);return c.reduce((s,o,i)=>s+(o-n*M.f[i])**2/(n*M.f[i]),0);}
+function bg(t){let s=0;for(let i=1;i<t.length;i++)s+=M.lb[t[i-1]][t[i]];return s;}
+const dec=(ct,k)=>ct.map(v=>(v-k+26)%26);
+const best=(ct,f,sign)=>{let bk=0,bs=Infinity;for(let k=0;k<26;k++){const s=sign*f(dec(ct,k));if(s<bs){bs=s;bk=k;}}return bk;};
+const arr=s=>clean(s).split('').map(c=>c.charCodeAt(0)-65);
+$('atk').onclick=()=>{
+ if(!cct){$('atkOut').textContent='Cifra prima un messaggio al punto 2.';return;}
+ train();const ct=arr(cct);
+ const kc=best(ct,chi,1),kb=best(ct,bg,-1);
+ $('atkOut').innerHTML=`Chiave stimata: χ² → <b>${kc}</b>, bigrammi → <b>${kb}</b> (chiave reale: ${+$('ck').value})`;
+ let h='<tr><th>k</th><th>χ²</th><th>log P bigrammi</th><th>testo</th></tr>';
+ for(let k=0;k<26;k++){const d=dec(ct,k);h+=`<tr class="${k===kb?'best':''}"><td>${k}</td><td>${chi(d).toFixed(1)}</td><td>${bg(d).toFixed(1)}</td><td>${d.map(v=>String.fromCharCode(65+v)).join('')}</td></tr>`;}
+ $('atkT').innerHTML=h;
+};
+$('test').onclick=()=>{
+ train();const T=arr(TEST),N=400;
+ let h='<tr><th>Lunghezza</th><th>Ricerca esaustiva + χ²</th><th>Esaustiva + bigrammi</th></tr>';
+ for(const L of [5,10,20,40,80,160]){
+  let a=0,b=0;
+  for(let i=0;i<N;i++){
+   const s=Math.floor(Math.random()*(T.length-L)),k=Math.floor(Math.random()*26);
+   const ct=T.slice(s,s+L).map(v=>(v+k)%26);
+   if(best(ct,chi,1)===k)a++;if(best(ct,bg,-1)===k)b++;
+  }
+  h+=`<tr><td>${L}</td><td>${(100*a/N).toFixed(0)}%</td><td>${(100*b/N).toFixed(0)}%</td></tr>`;
+ }
+ $('atkT').innerHTML=h;
+ $('atkOut').innerHTML='Successo su 400 prove per lunghezza (sottostringhe del testo di prova, chiave casuale). Per testi molto corti la statistica è poco affidabile, e un corpus di addestramento piccolo penalizza soprattutto i bigrammi. Entrambi gli approcci sono comunque esaustivi sulle 26 chiavi: ciò che cambia è il criterio di scelta.';
+};
+
+/* ---------- Attacco ECC ---------- */
+$('eatk').onclick=()=>{
+ if(!st){$('eatkOut').textContent='Prima cifra al punto 1.';return;}
+ const K=Number(st.K),Q=st.Q;let o='';
+ // BSGS
+ let t0=performance.now();const m=Math.ceil(Math.sqrt(K)),baby=new Map();
+ let T=null;for(let j=0;j<m;j++){if(T)baby.set(T.x,{j,y:T.y});T=add(T,G);}
+ const step=neg(mul(BigInt(m),G));let R=Q,found=null;
+ for(let i=0;i<=m&&found===null;i++){
+  if(R===null){found=i*m;break;}
+  const h=baby.get(R.x);
+  if(h&&h.y===R.y)found=i*m+h.j;
+  R=add(R,step);
+ }
+ const tb=performance.now()-t0;
+ o+=found!==null?`BSGS (m=${m}, ${m} baby + ≤${m} giant step): d = <b>${found}</b> in ${tb.toFixed(0)} ms`:'BSGS: nessun d in [1, K].';
+ // esaustiva
+ if(K<=65536){
+  t0=performance.now();let X=G,f2=null;
+  for(let d=1;d<=K;d++){if(eq(X,Q)){f2=d;break;}X=add(X,G);}
+  o+=`<br>Ricerca esaustiva: d = <b>${f2}</b> in ${(performance.now()-t0).toFixed(0)} ms (fino a ${K} somme)`;
+ }else o+='<br>Ricerca esaustiva saltata (K troppo grande per il browser): è esattamente il divario O(K) contro O(√K).';
+ if(found!==null&&eq(mul(BigInt(found),G),Q))o+=`<br><span class="ok">Chiave verificata (d·G = Q). Messaggio decifrato: «${eccDecrypt(BigInt(found))}»</span>`;
+ $('eatkOut').innerHTML=o;
+};
+</script>
+</body>
+</html>
