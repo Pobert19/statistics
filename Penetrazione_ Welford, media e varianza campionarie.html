@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Penetrazione: Welford, media e varianza campionarie</title>
+<style>
+:root{--bg:#F2F4F1;--panel:#FBFCFA;--ink:#172026;--mut:#5B6770;--grid:#D5DAD6;--b:#1D6F8F;--r:#C4501B;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171A;--panel:#1A2125;--ink:#E6EBEE;--mut:#98A4AC;--grid:#2B343A;--b:#5FB4D6;--r:#F0894F;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12171A;--panel:#1A2125;--ink:#E6EBEE;--mut:#98A4AC;--grid:#2B343A;--b:#5FB4D6;--r:#F0894F;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "IBM Plex Sans","Segoe UI",system-ui,sans-serif}
+main{max-width:1040px;margin:0 auto;padding:28px 18px 56px}
+h1{font-size:clamp(1.7rem,4.5vw,2.6rem);line-height:1.12;margin:0 0 10px;letter-spacing:-.02em;max-width:24ch}
+h2{font-size:1.2rem;margin:40px 0 6px}
+p{max-width:72ch;margin:0 0 10px}
+.mut{color:var(--mut)}
+.ctrl{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:end;background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:16px;margin-top:20px}
+label{display:flex;flex-direction:column;font-size:.85rem;color:var(--mut);gap:4px}
+select,input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--grid);border-radius:6px;padding:6px 8px;min-width:90px}
+input[type=range]{padding:0;min-width:140px;accent-color:var(--b)}
+button{font:inherit;cursor:pointer;border:1px solid var(--ink);background:var(--ink);color:var(--bg);border-radius:6px;padding:8px 16px;font-weight:600}
+button.sec{background:transparent;color:var(--ink);border-color:var(--grid);padding:6px 12px}
+button.sec[aria-pressed=true]{border-color:var(--b);box-shadow:inset 0 -3px 0 var(--b)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:12px}
+@media(max-width:820px){.grid3{grid-template-columns:1fr}}
+figure{margin:0;background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:10px}
+figcaption{font-size:.88rem;margin-bottom:4px}
+canvas{width:100%;height:230px;display:block}
+.pick{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.tw{overflow-x:auto;background:var(--panel);border:1px solid var(--grid);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:700px;font-size:.88rem;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--grid)}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--mut)}
+tr:last-child td{border-bottom:0}
+.note{background:var(--panel);border-left:4px solid var(--b);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0}
+pre{background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:12px 16px;overflow-x:auto;font-size:.9rem;margin:10px 0}
+.eq{background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:10px 16px;margin:8px 0;overflow-x:auto;font-family:"Cambria Math",Georgia,serif;font-size:1.02rem;white-space:nowrap}
+.lg{display:flex;gap:14px;font-size:.82rem;color:var(--mut);margin-top:4px}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+</style>
+</head>
+<body>
+<main>
+<h1>Welford: media e varianza campionarie degli attaccanti</h1>
+<p class="mut">Ogni attaccante prova a penetrare n sistemi e ottiene un punteggio intero da 0 a 10 per ciascuno. Media e varianza dei suoi n punteggi si calcolano in un solo passaggio con le ricorrenze di Welford. Qui simuli m attaccanti e confronti le loro statistiche con μ e σ².</p>
+
+<h2>Esercizio 1 – Ricorrenze di Welford</h2>
+<p>Sia M<sub>k</sub> la media dei primi k punteggi e SS<sub>k</sub> = Σ(x<sub>i</sub> − M<sub>k</sub>)² la somma dei quadrati degli scarti. Come per Knuth, si parte dalla media:</p>
+<div class="eq">M<sub>k</sub> = M<sub>k−1</sub> + (x<sub>k</sub> − M<sub>k−1</sub>)/k &nbsp;⇒&nbsp; x<sub>k</sub> − M<sub>k−1</sub> = k(M<sub>k</sub> − M<sub>k−1</sub>)</div>
+<p>Poiché Σx<sub>i</sub> = kM<sub>k</sub>, vale SS<sub>k</sub> = Σx<sub>i</sub>² − kM<sub>k</sub>². Sottraendo il caso k−1 e usando (k−1)M<sub>k−1</sub> = kM<sub>k</sub> − x<sub>k</sub>:</p>
+<div class="eq">SS<sub>k</sub> − SS<sub>k−1</sub> = x<sub>k</sub>² − kM<sub>k</sub>² + (kM<sub>k</sub> − x<sub>k</sub>)M<sub>k−1</sub><br>
+= x<sub>k</sub>(x<sub>k</sub> − M<sub>k−1</sub>) − M<sub>k</sub>·k(M<sub>k</sub> − M<sub>k−1</sub>)<br>
+= x<sub>k</sub>(x<sub>k</sub> − M<sub>k−1</sub>) − M<sub>k</sub>(x<sub>k</sub> − M<sub>k−1</sub>)<br>
+= (x<sub>k</sub> − M<sub>k−1</sub>)(x<sub>k</sub> − M<sub>k</sub>)</div>
+<p>Con d = x<sub>k</sub> − M<sub>k−1</sub> si ha x<sub>k</sub> − M<sub>k</sub> = d(k−1)/k, quindi SS<sub>k</sub> = SS<sub>k−1</sub> + d²(k−1)/k. Dividendo per k−1 si ottiene la varianza campionaria:</p>
+<div class="eq">s²<sub>k</sub> = SS<sub>k</sub>/(k−1) = ((k−2)/(k−1))·s²<sub>k−1</sub> + (x<sub>k</sub> − M<sub>k−1</sub>)²/k &nbsp;&nbsp;(k ≥ 2)</div>
+<p>Il nucleo del codice sono tre righe, con M = 0 e SS = 0 all’inizio:</p>
+<pre>d = x - M          # scarto dalla vecchia media
+M += d / k         # Knuth: nuova media
+SS += d * (x - M)  # Welford: nuova somma dei quadrati
+# varianza campionaria: s2 = SS / (k - 1)</pre>
+
+<h2>Esercizio 2 – Simulazione</h2>
+<div class="ctrl">
+<label>Distribuzione dei punteggi<select id="dist"><option value="bin">Binomiale(10, p)</option><option value="uni">Uniforme su {0,…,10}</option><option value="ext">Estremi: 10 con prob. p, altrimenti 0</option></select></label>
+<label>p<input id="p" type="range" min="0.1" max="0.9" step="0.05" value="0.4"><span id="pv">0.40</span></label>
+<label>n massimo (sistemi)<select id="N"><option>100</option><option selected>1000</option><option>10000</option></select></label>
+<label>m (attaccanti)<input id="m" type="number" min="50" max="5000" step="50" value="2000"></label>
+<button id="go">Simula</button>
+</div>
+<div class="note" id="th"></div>
+
+<h2>Distribuzione sugli m attaccanti</h2>
+<p class="mut">Istogrammi delle m medie e delle m varianze campionarie calcolate con Welford sugli n sistemi scelti. Le linee tratteggiate indicano μ e σ²; la curva è l’approssimazione normale prevista dalla teoria.</p>
+<div class="pick" id="pick" role="group" aria-label="Scegli n"></div>
+<div class="grid3">
+<figure><figcaption>Medie campionarie M<sub>n</sub></figcaption><canvas id="h1"></canvas></figure>
+<figure><figcaption>Varianze campionarie s²<sub>n</sub></figcaption><canvas id="h2"></canvas></figure>
+<figure><figcaption>Variabilità al crescere di n (scala log-log)</figcaption><canvas id="h3"></canvas><div class="lg"><span><i style="background:var(--b)"></i>dev. std. delle medie</span><span><i style="background:var(--r)"></i>dev. std. delle varianze</span></div></figure>
+</div>
+
+<h2>Numeri a confronto</h2>
+<div class="tw"><table id="tab"></table></div>
+<div class="note" id="agg"></div>
+
+<h2>Conclusioni</h2>
+<p><b>Confronto con μ e σ².</b> La media delle m medie campionarie coincide con μ e la media delle m varianze campionarie coincide con σ², a meno del rumore di simulazione, per ogni n, anche piccolo. Gli stimatori sono quindi corretti (non distorti). Per la varianza è essenziale dividere per n−1: con n al denominatore la media delle varianze risulterebbe σ²(n−1)/n, troppo bassa.</p>
+<p><b>Perché serve nell’inferenza.</b> In pratica si osserva un solo attaccante e non si conoscono μ e σ². Poiché media e varianza campionarie sono centrate sui valori veri, si possono usare per stimarli. Il confronto mostra anche quanto una singola stima può sbagliare, cioè la base per intervalli di confidenza e test.</p>
+<p><b>Effetto di n.</b> La deviazione standard delle medie vale σ/√n: quadruplicare n la dimezza. Anche la dispersione delle varianze campionarie si riduce come 1/√n, con un coefficiente che dipende dalla curtosi della distribuzione (la teoria nella tabella usa il quarto momento). Con n grande ogni attaccante fornisce stime molto vicine a μ e σ²; l’istogramma delle medie diventa più stretto e più vicino a una normale, come previsto dal teorema centrale del limite. Aumentare m non riduce la variabilità del singolo attaccante: rende solo più nitide le distribuzioni empiriche.</p>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+let R=null,sel=0;
+const cv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function fmt(v){const a=Math.abs(v);return a===0?"0":a>=1000?v.toFixed(0):a>=10?v.toFixed(2):a>=1?v.toFixed(3):a>=.01?v.toFixed(4):v.toExponential(2)}
+function prep(c){const r=window.devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;c.width=w*r;c.height=h*r;const g=c.getContext("2d");g.scale(r,r);g.font="11px system-ui,sans-serif";return{g,w,h}}
+const PAD={l:46,r:8,t:8,b:24};
+function axes(g,w,h,x0,x1,y0,y1,lg){
+ g.strokeStyle=cv("--grid");g.fillStyle=cv("--mut");g.lineWidth=1;g.textAlign="right";
+ const Y=v=>h-PAD.b-(h-PAD.t-PAD.b)*((lg?Math.log10(v)-Math.log10(y0):v-y0)/(lg?Math.log10(y1)-Math.log10(y0):y1-y0));
+ for(let i=0;i<=4;i++){const v=lg?y0*Math.pow(y1/y0,i/4):y0+(y1-y0)*i/4,y=Y(v);g.beginPath();g.moveTo(PAD.l,y);g.lineTo(w-PAD.r,y);g.stroke();g.fillText(fmt(v),PAD.l-5,y+4)}
+ g.textAlign="center";
+ const X=v=>PAD.l+(w-PAD.l-PAD.r)*((lg?Math.log10(v)-Math.log10(x0):v-x0)/(lg?Math.log10(x1)-Math.log10(x0):x1-x0));
+ if(lg){R.cps.forEach(n=>g.fillText(n,X(n),h-8))}else for(let i=0;i<=4;i++){const v=x0+(x1-x0)*i/4;g.fillText(fmt(v),X(v),h-8)}
+ return{X,Y};
+}
+const avg=a=>{let s=0;for(const x of a)s+=x;return s/a.length};
+const sd=a=>{const m=avg(a);let s=0;for(const x of a)s+=(x-m)**2;return Math.sqrt(s/(a.length-1))};
+function hist(c,v,xmin,xmax,mark,mu,s){
+ const nb=30,wd=(xmax-xmin)/nb,cnt=new Array(nb).fill(0),m=v.length;
+ for(const x of v){const b=Math.floor((x-xmin)/wd);if(b>=0&&b<nb)cnt[b]++}
+ const dens=cnt.map(k=>k/(m*wd)),pk=Math.max(...dens,1/(s*2.5066))*1.08;
+ const{g,w,h}=prep(c),A=axes(g,w,h,xmin,xmax,0,pk,false);
+ g.fillStyle=cv(mark==="var"?"--r":"--b");g.globalAlpha=.55;
+ dens.forEach((d,i)=>{const x=A.X(xmin+i*wd),x2=A.X(xmin+(i+1)*wd);g.fillRect(x,A.Y(d),Math.max(1,x2-x-1),A.Y(0)-A.Y(d))});
+ g.globalAlpha=1;g.strokeStyle=cv("--ink");g.lineWidth=1.6;g.beginPath();
+ for(let i=0;i<=120;i++){const x=xmin+(xmax-xmin)*i/120,y=Math.exp(-((x-mu)**2)/(2*s*s))/(s*2.5066);i?g.lineTo(A.X(x),A.Y(y)):g.moveTo(A.X(x),A.Y(y))}
+ g.stroke();g.setLineDash([5,4]);g.lineWidth=1;g.beginPath();g.moveTo(A.X(mu),A.Y(0));g.lineTo(A.X(mu),A.Y(pk));g.stroke();g.setLineDash([]);
+}
+function spread(c){
+ const{cps,sdM,sdV,tM,tV}=R,all=[...sdM,...sdV,...tM,...tV].filter(x=>x>0),lo=Math.min(...all)/1.4,hi=Math.max(...all)*1.4;
+ const{g,w,h}=prep(c),A=axes(g,w,h,cps[0],cps[cps.length-1],lo,hi,true);
+ [[sdM,tM,"--b"],[sdV,tV,"--r"]].forEach(([s,t,col])=>{
+  g.strokeStyle=cv(col);g.fillStyle=cv(col);g.setLineDash([5,4]);g.lineWidth=1.2;g.beginPath();
+  t.forEach((v,i)=>i?g.lineTo(A.X(cps[i]),A.Y(v)):g.moveTo(A.X(cps[i]),A.Y(v)));g.stroke();g.setLineDash([]);g.lineWidth=1.8;g.beginPath();
+  s.forEach((v,i)=>i?g.lineTo(A.X(cps[i]),A.Y(v)):g.moveTo(A.X(cps[i]),A.Y(v)));g.stroke();
+  s.forEach((v,i)=>{g.beginPath();g.arc(A.X(cps[i]),A.Y(v),3,0,7);g.fill()});
+ });
+}
+function render(){
+ if(!R)return;
+ const{cps,means,vars,mu,s2,m4}=R,n=cps[sel],sg=Math.sqrt(s2),sm=sg/Math.sqrt(n);
+ const sv=Math.sqrt(Math.max(m4-(n-3)/(n-1)*s2*s2,1e-12)/n);
+ hist($("h1"),means[sel],mu-4*sm,mu+4*sm,"mean",mu,sm);
+ hist($("h2"),vars[sel],Math.max(0,s2-4*sv),s2+4*sv,"var",s2,sv);
+ spread($("h3"));
+ [...$("pick").children].forEach((b,i)=>b.setAttribute("aria-pressed",i===sel));
+}
+function table(){
+ const{cps,means,vars,mu,s2,m4}=R,sg=Math.sqrt(s2);
+ R.sdM=[];R.sdV=[];R.tM=[];R.tV=[];
+ let h="<tr><th>n</th><th>media delle medie (μ)</th><th>dev. std. medie sim / teo σ/√n</th><th>media delle varianze (σ²)</th><th>dev. std. varianze sim / teo</th></tr>";
+ cps.forEach((n,k)=>{
+  const a=avg(means[k]),b=sd(means[k]),c=avg(vars[k]),d=sd(vars[k]);
+  const tm=sg/Math.sqrt(n),tv=Math.sqrt(Math.max(m4-(n-3)/(n-1)*s2*s2,0)/n);
+  R.sdM.push(b);R.sdV.push(d);R.tM.push(tm);R.tV.push(tv);
+  h+=`<tr><td>${n}</td><td>${fmt(a)} (${fmt(mu)})</td><td>${fmt(b)} / ${fmt(tm)}</td><td>${fmt(c)} (${fmt(s2)})</td><td>${fmt(d)} / ${fmt(tv)}</td></tr>`});
+ $("tab").innerHTML=h;
+ $("agg").innerHTML=`Controllo su un attaccante con n = ${R.N}: la media di Welford differisce da quella a due passaggi di ${R.dm.toExponential(1)} e la varianza di ${R.dv.toExponential(1)}, cioè il risultato coincide fino agli errori di arrotondamento, ma in un solo passaggio e con memoria costante.`;
+}
+function run(){
+ const kind=$("dist").value,p=+$("p").value,pmf=[];
+ if(kind==="bin"){const C=(n,k)=>{let r=1;for(let i=1;i<=k;i++)r=r*(n-k+i)/i;return r};for(let k=0;k<=10;k++)pmf.push(C(10,k)*p**k*(1-p)**(10-k))}
+ else if(kind==="uni"){for(let k=0;k<=10;k++)pmf.push(1/11)}
+ else{for(let k=0;k<=10;k++)pmf.push(k===10?p:k===0?1-p:0)}
+ let mu=0,s2=0,m4=0;pmf.forEach((q,k)=>mu+=k*q);pmf.forEach((q,k)=>{s2+=(k-mu)**2*q;m4+=(k-mu)**4*q});
+ const cdf=[];let t=0;pmf.forEach(q=>cdf.push(t+=q));
+ const N=+$("N").value,m=Math.max(50,Math.min(5000,+$("m").value||2000));
+ const cps=[10,30,100,1000,10000].filter(c=>c<=N),cpi=new Int16Array(N+1).fill(-1);cps.forEach((c,i)=>cpi[c]=i);
+ const means=cps.map(()=>new Float64Array(m)),vars=cps.map(()=>new Float64Array(m)),xs=new Float64Array(N);
+ for(let j=0;j<m;j++){
+  let M=0,SS=0;
+  for(let k=1;k<=N;k++){
+   const u=Math.random();let x=0;while(x<10&&u>=cdf[x])x++;
+   if(j===0)xs[k-1]=x;
+   const d=x-M;M+=d/k;SS+=d*(x-M);
+   const c=cpi[k];if(c>=0){means[c][j]=M;vars[c][j]=SS/(k-1)}
+  }
+  if(j===0){R={M0:M,V0:SS/(N-1)}}
+ }
+ let mn=0;for(const x of xs)mn+=x;mn/=N;let vr=0;for(const x of xs)vr+=(x-mn)**2;vr/=N-1;
+ R={cps,means,vars,mu,s2,m4,N,m,dm:Math.abs(R.M0-mn),dv:Math.abs(R.V0-vr)};sel=cps.length-1;
+ $("th").innerHTML=`Distribuzione scelta: μ = ${fmt(mu)} e σ² = ${fmt(s2)} (teorici, calcolati dalla funzione di probabilità sui valori 0,…,10).`;
+ $("pick").innerHTML=cps.map((n,i)=>`<button class="sec" type="button" data-i="${i}">n = ${n}</button>`).join("");
+ [...$("pick").children].forEach(b=>b.onclick=()=>{sel=+b.dataset.i;render()});
+ table();render();
+}
+$("go").onclick=run;
+$("p").oninput=()=>$("pv").textContent=(+$("p").value).toFixed(2);
+$("dist").onchange=()=>{$("p").disabled=$("dist").value==="uni"};
+let tm;window.addEventListener("resize",()=>{clearTimeout(tm);tm=setTimeout(render,120)});
+run();
+</script>
+</body>
+</html>
