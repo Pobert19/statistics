@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homework: Riemann vs Lebesgue e CDF normale</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#66665f;--card:#fff;--bd:#dcdcd3;--ac:#1f6feb;--ac2:#c2410c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16161a;--fg:#ececea;--mut:#a0a09a;--card:#202026;--bd:#38383f;--ac:#6ea8ff;--ac2:#fb923c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#16161a;--fg:#ececea;--mut:#a0a09a;--card:#202026;--bd:#38383f;--ac:#6ea8ff;--ac2:#fb923c;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:920px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:1.6rem;margin:.2em 0}h2{font-size:1.3rem;margin-top:2em;border-bottom:1px solid var(--bd);padding-bottom:.3em}h3{font-size:1.05rem;margin-top:1.6em}
+p,li{max-width:75ch}.mut{color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px 16px;margin:12px 0}
+.scroll{overflow-x:auto}table{border-collapse:collapse;font-size:.85rem;width:100%}
+th,td{border-bottom:1px solid var(--bd);padding:5px 8px;text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
+select,input,button{font:inherit;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--card);color:var(--fg)}
+button{cursor:pointer;background:var(--ac);color:#fff;border-color:var(--ac)}
+canvas{width:100%;max-width:700px;height:300px;display:block}
+.k{color:var(--ac)}.o{color:var(--ac2)}
+</style>
+</head>
+<body>
+<main>
+<h1>Homework: integrazione e CDF normale</h1>
+<p class="mut">Es. 1 – Integrazione di Riemann e di Lebesgue &nbsp;·&nbsp; Es. 2 – Calcolo numerico della CDF normale. Tutto il codice gira in JavaScript, direttamente in questa pagina.</p>
+
+<h2>Es. 1 – Riemann vs Lebesgue</h2>
+<h3>Metodi implementati</h3>
+<ul>
+<li><b class="k">Riemann</b> (somma di punto medio): si divide [a,b] in <i>n</i> sottointervalli e si calcola Σ f(m<sub>i</sub>)·h. Costo O(n).</li>
+<li><b class="o">Lebesgue</b> (somma di funzione semplice dal basso): si divide il <i>range</i> [0, max f] in <i>N</i> livelli di ampiezza Δy e si calcola Σ y<sub>k</sub>·μ(f<sup>-1</sup>([y<sub>k</sub>, y<sub>k+1</sub>))). La misura delle controimmagini è stimata su una griglia fine di M = 100·N punti (conteggio per fasce). Costo O(M + N). Tutte le funzioni scelte sono ≥ 0.</li>
+</ul>
+<p>Il metodo di Lebesgue approssima dal basso: l’errore è circa Δy·(b−a)/2, quindi converge come 1/N, mentre il punto medio di Riemann converge come 1/n² per funzioni lisce.</p>
+
+<div class="card">
+<label>Funzione: <select id="fsel"></select></label>
+<div class="scroll" id="tab1" style="margin-top:10px"></div>
+<canvas id="cv"></canvas>
+<p class="mut" id="cvnote">Errore assoluto in scala log-log, in funzione di n (Riemann) e N (Lebesgue).</p>
+</div>
+<h3>Riepilogo (n = N = 1000, M = 100000)</h3>
+<div class="card scroll" id="tab1b"></div>
+<div id="disc"></div>
+
+<h3>Funzioni patologiche</h3>
+<div class="card" id="patho"></div>
+
+<h2>Es. 2 – Calcolo numerico della CDF normale</h2>
+<p>Φ(x) = ∫<sub>−∞</sub><sup>x</sup> φ(t)dt, con φ(t) = e<sup>−t²/2</sup>/√(2π). Si usa Φ(x) = ½ + ∫<sub>0</sub><sup>x</sup> φ(t)dt e la relazione Φ(x) = ½[1 + erf(x/√2)].</p>
+<h3>Metodi</h3>
+<ul>
+<li><b>Trapezi</b> e <b>Simpson</b> sull’integrale da 0 a x (n = 100).</li>
+<li><b>Serie di erf</b>: erf(z) = (2/√π) Σ (−1)<sup>n</sup> z<sup>2n+1</sup>/(n!(2n+1)), 60 termini. È alternata: per |z| grande c’è cancellazione.</li>
+<li><b>Abramowitz–Stegun 7.1.26</b>: approssimazione razionale di erf con errore massimo circa 1.5·10<sup>−7</sup>.</li>
+<li><b>Ibrido</b>: serie stabile a termini positivi Φ(x) = ½ + φ(x)·Σ x<sup>2n+1</sup>/(2n+1)!! per |x| &lt; 3, frazione continua di Mills per la coda Q(x) = φ(x)/(x + 1/(x + 2/(x + 3/(x + …)))) altrimenti, così anche le code hanno precisione relativa piena.</li>
+</ul>
+<div class="card">
+<p class="mut" style="margin-top:0">Valori di riferimento: valori standard a 16 cifre della CDF normale (quelli restituiti da <code>scipy.stats.norm.cdf</code> e riportati nelle tavole numeriche); verificali ad esempio con un calcolatore online o con SciPy. Nella tabella sono mostrati gli <b>errori assoluti</b> di ciascun metodo.</p>
+<div class="scroll" id="tab2"></div>
+<p>Prova un valore: x = <input id="xin" type="number" step="0.1" value="1.5" style="width:90px"> <button id="xgo">Calcola</button></p>
+<div class="scroll" id="tab2b"></div>
+</div>
+<h3>Convergenza (x = 1)</h3>
+<div class="card scroll" id="tab2c"></div>
+<h3>Efficienza</h3>
+<div class="card scroll" id="tab2d"></div>
+
+<h3>Perché Φ non è elementare: il teorema di Liouville</h3>
+<p>Liouville (1835) afferma: se f e g sono funzioni razionali, la primitiva di f·e<sup>g</sup> è elementare se e solo se esiste una funzione razionale R tale che f = R′ + R·g′ (risultato esteso poi da Risch e Rosenlicht a tutte le funzioni elementari).</p>
+<p>Per l’integrando e<sup>−x²/2</sup> si ha f = 1 e g = −x²/2, quindi g′ = −x e la condizione diventa R′ − xR = 1. Se R fosse un polinomio di grado d ≥ 0, R′ − xR avrebbe grado d+1 ≥ 1, mai uguale a 1. Se R avesse un polo di ordine m in un punto c, R′ avrebbe un polo di ordine m+1 e xR di ordine al più m: non possono cancellarsi. Dunque nessun R esiste e ∫e<sup>−x²/2</sup>dx non è elementare, e lo stesso vale per Φ.</p>
+<p><b>Funzione errore.</b> Si <i>definisce</i> erf(z) = (2/√π)∫<sub>0</sub><sup>z</sup>e<sup>−t²</sup>dt, e allora Φ(x) = ½[1 + erf(x/√2)] è una rappresentazione analitica esatta. Però erf è solo un nome dato all’integrale: per ottenere un numero serve comunque un algoritmo (serie, frazioni continue, approssimazioni razionali, integrazione numerica), ed è ciò che fanno le librerie matematiche.</p>
+
+<h2>Conclusioni</h2>
+<ul>
+<li>Per funzioni Riemann-integrabili i due approcci convergono allo stesso valore, che coincide con l’integrale esatto.</li>
+<li>Riemann (punto medio) è più accurato ed economico per funzioni lisce; Lebesgue dal basso converge solo come 1/N e richiede la stima delle misure delle controimmagini, ma è l’unico a funzionare per Dirichlet.</li>
+<li>Con singolarità (1/√x) entrambi convergono lentamente: Riemann come n<sup>−1/2</sup>, Lebesgue limitato anche dal troncamento di max f sulla griglia.</li>
+<li>Per Φ, i metodi ibridi (serie + frazione continua) battono i trapezi e Simpson in precisione e velocità, specie nelle code.</li>
+</ul>
+</main>
+<script>
+"use strict";
+/* ---------- utilità ---------- */
+const $=id=>document.getElementById(id);
+const fmt=v=>Number.isFinite(v)?v.toPrecision(9):String(v);
+const fe=v=>v===0?"0":v.toExponential(2);
+const gcd=(a,b)=>{while(b){[a,b]=[b,a%b]}return a};
+function timeit(fn){const t=performance.now();const r=fn();return [r,performance.now()-t]}
+
+/* ---------- Es. 1 ---------- */
+const F=[
+{n:"sin(x), [0, π]",f:Math.sin,a:0,b:Math.PI,I:2},
+{n:"x², [0, 1]",f:x=>x*x,a:0,b:1,I:1/3},
+{n:"1 se x<0.5, 3 se x≥0.5",f:x=>x<.5?1:3,a:0,b:1,I:2},
+{n:"|x − 0.5|",f:x=>Math.abs(x-.5),a:0,b:1,I:.25},
+{n:"1/√x, (0, 1]",f:x=>1/Math.sqrt(x),a:0,b:1,I:2},
+{n:"1 se x<0.5, 0 se x≥0.5",f:x=>x<.5?1:0,a:0,b:1,I:.5},
+{n:"sin(x)/x, [0, π]",f:x=>x?Math.sin(x)/x:1,a:0,b:Math.PI,I:1.8519370519824662}
+];
+function riemann(f,a,b,n){const h=(b-a)/n;let s=0;for(let i=0;i<n;i++)s+=f(a+(i+.5)*h);return s*h}
+function lebesgue(f,a,b,N,M){
+  const h=(b-a)/M,v=new Float64Array(M);let mx=0;
+  for(let i=0;i<M;i++){const y=f(a+(i+.5)*h);v[i]=y;if(y>mx)mx=y}
+  const dy=mx/N,c=new Float64Array(N+1);
+  for(let i=0;i<M;i++)c[Math.min(N,Math.floor(v[i]/dy))]++;
+  let s=0;for(let k=1;k<=N;k++)s+=k*dy*c[k];
+  return s*h;
+}
+const NS=[10,100,1000,10000];
+const res=F.map(o=>NS.map(N=>{
+  const [R,tR]=timeit(()=>riemann(o.f,o.a,o.b,N));
+  const [L,tL]=timeit(()=>lebesgue(o.f,o.a,o.b,N,100*N));
+  return {N,R,L,tR,tL};
+}));
+F.forEach((o,i)=>{const op=document.createElement("option");op.value=i;op.textContent=o.n;$("fsel").appendChild(op)});
+
+function show(i){
+  const o=F[i],r=res[i];
+  let h=`<p style="margin:0 0 8px">Valore esatto: <b>${fmt(o.I)}</b></p><table><tr><th>n = N</th><th>Riemann</th><th>errore</th><th>ms</th><th>Lebesgue</th><th>errore</th><th>ms</th></tr>`;
+  r.forEach(q=>{h+=`<tr><td>${q.N}</td><td>${fmt(q.R)}</td><td>${fe(Math.abs(q.R-o.I))}</td><td>${q.tR.toFixed(2)}</td><td>${fmt(q.L)}</td><td>${fe(Math.abs(q.L-o.I))}</td><td>${q.tL.toFixed(1)}</td></tr>`});
+  $("tab1").innerHTML=h+"</table>";
+  draw(r,o.I);
+}
+function draw(r,I){
+  const cv=$("cv"),dpr=window.devicePixelRatio||1,W=cv.clientWidth||600,H=300;
+  cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.scale(dpr,dpr);
+  const css=getComputedStyle(document.documentElement),col=n=>css.getPropertyValue(n).trim();
+  g.clearRect(0,0,W,H);
+  const ev=q=>Math.log10(Math.max(q,1e-17));
+  const E=r.map(q=>[ev(Math.abs(q.R-I)),ev(Math.abs(q.L-I))]);
+  const lo=-17,hi=Math.max(1,Math.ceil(Math.max(...E.flat()))),px=40,py=15;
+  const X=k=>px+(W-px-15)*k/(r.length-1),Y=e=>py+(H-2*py-10)*(hi-e)/(hi-lo);
+  g.strokeStyle=col("--bd");g.fillStyle=col("--mut");g.font="11px sans-serif";
+  for(let e=lo;e<=hi;e+=4){g.beginPath();g.moveTo(px,Y(e));g.lineTo(W-15,Y(e));g.stroke();g.fillText("1e"+e,2,Y(e)+4)}
+  r.forEach((q,k)=>g.fillText(String(q.N),X(k)-8,H-3));
+  [[0,"--ac"],[1,"--ac2"]].forEach(([s,c])=>{g.strokeStyle=col(c);g.lineWidth=2;g.beginPath();
+    E.forEach((e,k)=>k?g.lineTo(X(k),Y(e[s])):g.moveTo(X(k),Y(e[s])));g.stroke();
+    g.fillStyle=col(c);g.fillText(s?"Lebesgue":"Riemann",W-90,20+s*14)});
+}
+$("fsel").onchange=e=>show(+e.target.value);
+let tb=`<table><tr><th>Funzione</th><th>esatto</th><th>Riemann</th><th>err. R</th><th>Lebesgue</th><th>err. L</th></tr>`;
+F.forEach((o,i)=>{const q=res[i][2];tb+=`<tr><td>${o.n}</td><td>${fmt(o.I)}</td><td>${fmt(q.R)}</td><td>${fe(Math.abs(q.R-o.I))}</td><td>${fmt(q.L)}</td><td>${fe(Math.abs(q.L-o.I))}</td></tr>`});
+$("tab1b").innerHTML=tb+"</table>";
+$("disc").innerHTML=`<p><b>Osservazioni.</b> Le funzioni a gradino mostrano il comportamento diverso dei due approcci: Riemann con punto medio perde accuratezza solo se il salto cade dentro un sottointervallo (errore O(1/n) per n dispari), mentre Lebesgue, che raggruppa per valore, vede solo due livelli e la misura dei due insiemi, quindi è esatto a meno della griglia. Per 1/√x (integrale improprio, valore 2) Riemann converge come n<sup>−1/2</sup> e Lebesgue è frenato dal troncamento del massimo sulla griglia (circa √(2M)). Per sin(x), x² e sin(x)/x Riemann è nettamente migliore: errore 1/n² contro 1/N.</p>`;
+show(0);window.addEventListener("resize",()=>show(+$("fsel").value));
+
+/* patologiche */
+(function(){
+  let h=`<p><b>Dirichlet</b> (1 sui razionali, 0 sugli irrazionali). Ogni sottointervallo contiene sia razionali sia irrazionali, quindi per ogni partizione la somma superiore vale 1 e quella inferiore 0. Scegliendo i punti campione razionali (k/n) la somma di Riemann è sempre <b>1</b>, scegliendoli irrazionali (k/n + √2/(2n²)) è sempre <b>0</b>: il limite non esiste e f <b>non è Riemann-integrabile</b>. In termini di Lebesgue, f è la funzione semplice 1·𝟙<sub>ℚ∩[0,1]</sub> e μ(ℚ∩[0,1]) = 0 perché ℚ è numerabile, quindi ∫f dμ = 1·0 + 0·1 = <b>0</b>. Con i float di JavaScript non si possono distinguere razionali e irrazionali: il risultato è quello teorico, non un calcolo.</p>`;
+  h+=`<p><b>Thomae</b> (1/q in p/q ridotta, 0 sugli irrazionali) è Riemann-integrabile con integrale 0 (continua in ogni irrazionale). Somma di Riemann con punti k/n: (1/n²)·Σ<sub>k=1..n</sub> gcd(k,n).</p><table><tr><th>n</th><th>somma di Riemann</th></tr>`;
+  [10,100,1000,10000].forEach(n=>{let s=0;for(let k=1;k<=n;k++)s+=gcd(k,n);h+=`<tr><td>${n}</td><td>${fe(s/n/n)}</td></tr>`});
+  h+=`</table><p>Per Lebesgue, per ogni ε &gt; 0 l’insieme {f ≥ ε} è <b>finito</b>; ad esempio, per ε = 0.1 contiene `;
+  let pts=new Set();for(let q=1;q<=10;q++)for(let p=0;p<=q;p++)pts.add(p/q);
+  h+=`${pts.size} punti, di misura 0. Quindi ∫f dμ = 0, in accordo con Riemann: qui i due approcci coincidono.</p>`;
+  $("patho").innerHTML=h;
+})();
+
+/* ---------- Es. 2 ---------- */
+const SQ2PI=Math.sqrt(2*Math.PI),phi=x=>Math.exp(-x*x/2)/SQ2PI;
+function trap(x,n=100){const h=x/n;let s=(phi(0)+phi(x))/2;for(let i=1;i<n;i++)s+=phi(i*h);return .5+s*h}
+function simpson(x,n=100){n+=n%2;const h=x/n;let s=phi(0)+phi(x);for(let i=1;i<n;i++)s+=phi(i*h)*(i%2?4:2);return .5+s*h/3}
+function serieErf(x,K=60){const z=x/Math.SQRT2;let t=z,s=z;for(let n=1;n<K;n++){t*=-z*z/n;s+=t/(2*n+1)}return .5*(1+2/Math.sqrt(Math.PI)*s)}
+function as7126(x){const z=Math.abs(x)/Math.SQRT2,t=1/(1+.3275911*z);
+  const p=((((1.061405429*t-1.453152027)*t+1.421413741)*t-.284496736)*t+.254829592)*t;
+  const e=1-p*Math.exp(-z*z);return .5*(1+(x<0?-e:e))}
+function seriesStable(x){let t=x,s=x;for(let n=1;n<400&&Math.abs(t)>1e-18*Math.abs(s);n++){t*=x*x/(2*n+1);s+=t}return .5+phi(x)*s}
+function tail(x){let t=x;for(let k=200;k>=1;k--)t=x+k/t;return phi(x)/t}
+function hybrid(x){const a=Math.abs(x);if(a<3)return seriesStable(x);const q=tail(a);return x>0?1-q:q}
+const M=[["Trapezi",x=>trap(x)],["Simpson",x=>simpson(x)],["Serie erf",x=>serieErf(x)],["A&amp;S 7.1.26",as7126],["Ibrido",hybrid]];
+const REF=[[-5,2.866515718791939e-7],[-3,0.0013498980316300946],[-1,0.15865525393145707],[0,0.5],[0.5,0.6914624612740131],[1,0.8413447460685429],[1.96,0.9750021048517795],[2,0.9772498680518208],[2.5,0.9937903346742238],[3,0.9986501019683699],[5,0.9999997133484281]];
+let t2=`<table><tr><th>x</th><th>Φ(x) rif.</th>${M.map(m=>`<th>err. ${m[0]}</th>`).join("")}</tr>`;
+REF.forEach(([x,r])=>{t2+=`<tr><td>${x}</td><td>${r.toPrecision(16)}</td>${M.map(m=>`<td>${fe(Math.abs(m[1](x)-r))}</td>`).join("")}</tr>`});
+$("tab2").innerHTML=t2+"</table>";
+function own(){const x=parseFloat($("xin").value);if(!Number.isFinite(x))return;
+  $("tab2b").innerHTML=`<table><tr><th>Metodo</th><th>Φ(${x})</th></tr>`+M.map(m=>`<tr><td>${m[0]}</td><td>${m[1](x).toPrecision(16)}</td></tr>`).join("")+"</table>"}
+$("xgo").onclick=own;own();
+let t3=`<table><tr><th>n</th><th>err. trapezi</th><th>err. Simpson</th></tr>`;
+for(let n=2;n<=256;n*=2){t3+=`<tr><td>${n}</td><td>${fe(Math.abs(trap(1,n)-REF[5][1]))}</td><td>${fe(Math.abs(simpson(1,n)-REF[5][1]))}</td></tr>`}
+$("tab2c").innerHTML=t3+`</table><p class="mut">I trapezi dimezzano l’errore ×4 a ogni raddoppio di n (ordine 2), Simpson ×16 (ordine 4) fino al limite della precisione macchina.</p>`;
+const xs=Array.from({length:200000},(_,i)=>-4+8*((i*0.6180339887)%1));
+let t4=`<table><tr><th>Metodo</th><th>200 000 valutazioni (ms)</th></tr>`;
+M.forEach(m=>{let s=0;const [,ms]=timeit(()=>{for(const x of xs)s+=m[1](x)});t4+=`<tr><td>${m[0]}</td><td>${ms.toFixed(1)}</td></tr>`});
+$("tab2d").innerHTML=t4+`</table><p class="mut">Trapezi e Simpson costano O(n) esponenziali per valutazione; la serie costa circa 60 operazioni; A&amp;S è a costo costante ma limitata a 10<sup>−7</sup>.</p>`;
+</script>
+</body>
+</html>
