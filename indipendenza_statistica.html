@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indipendenza statistica: test chi-quadro</title>
+<style>
+:root{--bg:#f3f1ec;--panel:#fff;--ink:#1c2733;--mute:#5d6b79;--line:#d5d9de;--acc:#0e6f63;--acc2:#b4541a;--soft:#e4f0ee;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Segoe UI",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:32px 18px 64px}
+h1{font:600 2rem/1.2 Georgia,"Times New Roman",serif;margin:0 0 6px}
+h2{font:600 1.3rem/1.3 Georgia,serif;margin:0 0 12px}
+p.lead{color:var(--mute);margin:0 0 24px;max-width:70ch}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px;margin-bottom:18px}
+textarea{width:100%;min-height:150px;font:14px/1.4 ui-monospace,Consolas,monospace;padding:10px;border:1px solid var(--line);border-radius:4px;resize:vertical}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
+button{font:inherit;padding:8px 14px;border-radius:4px;border:1px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer}
+button.sec{background:#fff;color:var(--acc)}
+button:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #f0b429;outline-offset:2px}
+select,input[type=number]{font:inherit;padding:6px;border:1px solid var(--line);border-radius:4px}
+.tw{overflow-x:auto;margin:10px 0 18px}
+table{border-collapse:collapse;min-width:300px}
+caption{text-align:left;font-weight:600;padding-bottom:6px}
+th,td{border:1px solid var(--line);padding:6px 12px;text-align:right;font-variant-numeric:tabular-nums}
+th{background:#eef2f4;font-weight:600}
+th:first-child,td:first-child{text-align:left}
+tr.tot td,tr.tot th,td.tot{background:#f6f7f8;font-weight:600}
+td.hot{background:#fbe9dd}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:8px 0 14px}
+.stat{border-left:4px solid var(--acc);background:var(--soft);padding:8px 12px}
+.stat b{display:block;font-size:1.35rem}
+.stat span{color:var(--mute);font-size:.85rem}
+.verdict{border-left:4px solid var(--acc2);padding:10px 14px;background:#fbf1ea;margin:10px 0}
+.verdict.ok{border-color:var(--acc);background:var(--soft)}
+.warn{color:var(--acc2);font-weight:600}
+.err{color:#a11;font-weight:600}
+code{background:#eef2f4;padding:1px 5px;border-radius:3px}
+.f{font-family:Georgia,serif;font-style:italic}
+@media (prefers-reduced-motion:no-preference){.verdict{transition:background .2s}}
+</style>
+</head>
+<body>
+<main>
+<h1>Indipendenza statistica</h1>
+<p class="lead">Inserisci un dataset bivariato (X, F), una coppia di valori per riga. La pagina costruisce la tabella di contingenza, calcola le frequenze marginali e condizionate, le frequenze attese sotto indipendenza, la statistica chi-quadro e il p-value.</p>
+
+<section>
+  <h2>1. Dati</h2>
+  <label for="data">Una osservazione per riga, nel formato <code>X,F</code> (sono accettati anche <code>;</code> e tabulazione).</label>
+  <textarea id="data" spellcheck="false"></textarea>
+  <div class="row">
+    <label>Nome X <input id="nx" type="text" value="Sistema operativo" size="18"></label>
+    <label>Nome F <input id="nf" type="text" value="Infezione malware" size="18"></label>
+    <label>Livello di significatività α
+      <select id="alpha"><option>0.10</option><option selected>0.05</option><option>0.01</option></select>
+    </label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="hdr"> la prima riga è un'intestazione</label>
+  </div>
+  <div class="row">
+    <button id="run">Calcola</button>
+    <button class="sec" id="ex1">Esempio con dipendenza</button>
+    <button class="sec" id="ex2">Esempio quasi indipendente</button>
+  </div>
+  <p id="msg" class="err" role="alert"></p>
+</section>
+
+<div id="out" hidden>
+<section>
+  <h2>2. Tabella di contingenza e frequenze marginali</h2>
+  <div class="tw" id="t-abs"></div>
+  <div class="tw" id="t-marg"></div>
+</section>
+
+<section>
+  <h2>3. Frequenze condizionate</h2>
+  <p>Le frequenze condizionate sono il rapporto tra la frequenza congiunta e quella marginale: <span class="f">f(F=j | X=i) = n<sub>ij</sub> / n<sub>i·</sub></span> e <span class="f">f(X=i | F=j) = n<sub>ij</sub> / n<sub>·j</sub></span>. Se le variabili sono indipendenti, le righe della prima tabella sono tutte uguali alla distribuzione marginale di F.</p>
+  <div class="tw" id="t-cr"></div>
+  <div class="tw" id="t-cc"></div>
+</section>
+
+<section>
+  <h2>4. Frequenze attese e chi-quadro</h2>
+  <p>Sotto l'ipotesi di indipendenza vale <span class="f">e<sub>ij</sub> = n<sub>i·</sub> · n<sub>·j</sub> / N</span>. La statistica è <span class="f">χ² = Σ (n<sub>ij</sub> − e<sub>ij</sub>)² / e<sub>ij</sub></span>, con (r−1)(c−1) gradi di libertà.</p>
+  <div class="tw" id="t-exp"></div>
+  <div class="tw" id="t-contrib"></div>
+  <div class="stats" id="stats"></div>
+  <p id="cellwarn"></p>
+</section>
+
+<section>
+  <h2>5. Interpretazione</h2>
+  <div id="verdict"></div>
+  <p><b>Richiamo teorico.</b> Due eventi A e B sono indipendenti se <span class="f">P(A ∩ B) = P(A) · P(B)</span>, ovvero <span class="f">P(A | B) = P(A)</span>: sapere che B si è verificato non cambia la probabilità di A. Per due variabili X e F l'indipendenza richiede che questa relazione valga per ogni coppia di modalità, cioè <span class="f">f<sub>ij</sub> = f<sub>i·</sub> · f<sub>·j</sub></span>. Il test chi-quadro confronta le frequenze osservate con quelle attese sotto questa ipotesi: più sono lontane, più la statistica cresce.</p>
+  <p><b>Associazione e causalità.</b> Un χ² significativo indica che i dati sono poco compatibili con l'indipendenza, quindi che esiste un'associazione. Non dice in che direzione agisce né se una variabile causi l'altra: l'associazione può dipendere da una terza variabile (confondente), da un campione non rappresentativo o dalla causalità inversa. Il p-value, inoltre, dipende dalla numerosità: con N grande anche scostamenti minimi risultano significativi, per questo conviene guardare anche l'indice V di Cramér, che misura l'intensità dell'associazione. Al contrario, un χ² non significativo non dimostra l'indipendenza: indica soltanto che i dati non bastano a rifiutarla.</p>
+</section>
+</div>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+/* ---------- funzioni matematiche ---------- */
+function lgamma(x){
+  const c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+  let y=x,t=x+5.5; t-=(x+0.5)*Math.log(t);
+  let s=1.000000000190015;
+  for(const k of c) s+=k/++y;
+  return -t+Math.log(2.5066282746310005*s/x);
+}
+// funzione gamma incompleta regolarizzata P(a,x)
+function gammaP(a,x){
+  if(x<=0) return 0;
+  if(x<a+1){
+    let ap=a,sum=1/a,del=sum;
+    for(let n=0;n<500;n++){ap++;del*=x/ap;sum+=del;if(Math.abs(del)<Math.abs(sum)*1e-14)break;}
+    return sum*Math.exp(-x+a*Math.log(x)-lgamma(a));
+  }
+  let b=x+1-a,c=1/1e-300,d=1/b,h=d;
+  for(let i=1;i<500;i++){
+    const an=-i*(i-a); b+=2;
+    d=an*d+b; if(Math.abs(d)<1e-300)d=1e-300;
+    c=b+an/c; if(Math.abs(c)<1e-300)c=1e-300;
+    d=1/d; const del=d*c; h*=del;
+    if(Math.abs(del-1)<1e-14)break;
+  }
+  return 1-Math.exp(-x+a*Math.log(x)-lgamma(a))*h;
+}
+const pValueChi2 = (chi,df) => Math.max(0,1-gammaP(df/2,chi/2));
+// valore critico: bisezione su p-value
+function critical(df,alpha){
+  let lo=0,hi=1000;
+  for(let i=0;i<200;i++){const m=(lo+hi)/2; pValueChi2(m,df)>alpha?lo=m:hi=m;}
+  return (lo+hi)/2;
+}
+
+/* ---------- utilità di formato ---------- */
+const f4 = v => v.toFixed(4);
+const f2 = v => v.toFixed(2);
+const fp = p => p<1e-4 ? p.toExponential(3) : p.toFixed(4);
+const esc = s => String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+/* ---------- parsing e tabella ---------- */
+function parse(text,header){
+  let lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  if(header) lines=lines.slice(1);
+  const pairs=[];
+  for(const l of lines){
+    const p=l.split(/[;,\t]/).map(s=>s.trim());
+    if(p.length<2||p[0]===""||p[1]==="") throw new Error("Riga non valida: «"+l+"». Usa il formato X,F.");
+    pairs.push([p[0],p[1]]);
+  }
+  if(pairs.length<2) throw new Error("Servono almeno due osservazioni.");
+  return pairs;
+}
+function contingency(pairs){
+  const xs=[...new Set(pairs.map(p=>p[0]))], fs=[...new Set(pairs.map(p=>p[1]))];
+  const n=xs.map(()=>fs.map(()=>0));
+  for(const [x,f] of pairs) n[xs.indexOf(x)][fs.indexOf(f)]++;
+  return {xs,fs,n};
+}
+
+/* ---------- rendering tabelle ---------- */
+function table(caption,corner,xs,fs,cell,opt={}){
+  let h=`<table><caption>${caption}</caption><tr><th>${corner}</th>`;
+  fs.forEach(f=>h+=`<th>${esc(f)}</th>`);
+  if(opt.rowTot) h+=`<th>${opt.rowTotLabel||"Totale"}</th>`;
+  h+="</tr>";
+  xs.forEach((x,i)=>{
+    h+=`<tr><th>${esc(x)}</th>`;
+    fs.forEach((f,j)=>{const c=cell(i,j);h+=`<td class="${c.cls||""}">${c.v}</td>`;});
+    if(opt.rowTot) h+=`<td class="tot">${opt.rowTot(i)}</td>`;
+    h+="</tr>";
+  });
+  if(opt.colTot){
+    h+=`<tr class="tot"><th>${opt.colTotLabel||"Totale"}</th>`;
+    fs.forEach((f,j)=>h+=`<td>${opt.colTot(j)}</td>`);
+    if(opt.grand!==undefined) h+=`<td>${opt.grand}</td>`;
+    h+="</tr>";
+  }
+  return h+"</table>";
+}
+
+/* ---------- analisi ---------- */
+function analizza(){
+  $("msg").textContent=""; 
+  try{
+    const pairs=parse($("data").value,$("hdr").checked);
+    const {xs,fs,n}=contingency(pairs);
+    const r=xs.length,c=fs.length,N=pairs.length;
+    if(r<2||c<2) throw new Error("Entrambe le variabili devono avere almeno due modalità diverse.");
+    const nx=$("nx").value||"X", nf=$("nf").value||"F";
+    const rt=n.map(row=>row.reduce((a,b)=>a+b,0));
+    const ct=fs.map((_,j)=>n.reduce((a,row)=>a+row[j],0));
+    const e=n.map((row,i)=>row.map((_,j)=>rt[i]*ct[j]/N));
+    const contrib=n.map((row,i)=>row.map((v,j)=>(v-e[i][j])**2/e[i][j]));
+    const chi=contrib.flat().reduce((a,b)=>a+b,0);
+    const df=(r-1)*(c-1), p=pValueChi2(chi,df), alpha=parseFloat($("alpha").value);
+    const crit=critical(df,alpha), V=Math.sqrt(chi/(N*Math.min(r-1,c-1)));
+    const corner=`${esc(nx)} \\ ${esc(nf)}`;
+
+    $("t-abs").innerHTML=table("Frequenze assolute congiunte n<sub>ij</sub>",corner,xs,fs,
+      (i,j)=>({v:n[i][j]}),{rowTot:i=>rt[i],colTot:j=>ct[j],grand:N,rowTotLabel:"n<sub>i·</sub>",colTotLabel:"n<sub>·j</sub>"});
+    $("t-marg").innerHTML=table("Frequenze relative congiunte f<sub>ij</sub> = n<sub>ij</sub> / N, con marginali",corner,xs,fs,
+      (i,j)=>({v:f4(n[i][j]/N)}),{rowTot:i=>f4(rt[i]/N),colTot:j=>f4(ct[j]/N),grand:f4(1),rowTotLabel:"f<sub>i·</sub>",colTotLabel:"f<sub>·j</sub>"});
+    $("t-cr").innerHTML=table("Condizionate di F dato X: f(F=j | X=i)",corner,xs,fs,
+      (i,j)=>({v:f4(n[i][j]/rt[i])}),{rowTot:()=>f4(1),colTot:j=>f4(ct[j]/N),colTotLabel:"marginale di F",rowTotLabel:"Somma"});
+    $("t-cc").innerHTML=table("Condizionate di X dato F: f(X=i | F=j)",corner,xs,fs,
+      (i,j)=>({v:f4(n[i][j]/ct[j])}),{rowTot:i=>f4(rt[i]/N),rowTotLabel:"marginale di X",colTot:()=>f4(1),colTotLabel:"Somma"});
+    $("t-exp").innerHTML=table("Frequenze attese sotto indipendenza e<sub>ij</sub>",corner,xs,fs,
+      (i,j)=>({v:f2(e[i][j]),cls:e[i][j]<5?"hot":""}),{rowTot:i=>f2(rt[i]),colTot:j=>f2(ct[j]),grand:f2(N)});
+    $("t-contrib").innerHTML=table("Contributi (n<sub>ij</sub> − e<sub>ij</sub>)² / e<sub>ij</sub>",corner,xs,fs,
+      (i,j)=>({v:f4(contrib[i][j])}),{colTot:j=>f4(contrib.reduce((a,row)=>a+row[j],0)),grand:f4(chi),colTotLabel:"Totale"});
+
+    $("stats").innerHTML=[
+      [f4(chi),"statistica χ²"],[df,"gradi di libertà"],[fp(p),"p-value"],
+      [f4(crit),`valore critico (α = ${alpha})`],[f4(V),"V di Cramér"]
+    ].map(([v,l])=>`<div class="stat"><b>${v}</b><span>${l}</span></div>`).join("");
+
+    const small=e.flat().filter(v=>v<5).length;
+    $("cellwarn").innerHTML = small
+      ? `<span class="warn">Attenzione:</span> ${small} frequenze attese su ${r*c} sono inferiori a 5 (celle evidenziate). L'approssimazione chi-quadro può essere poco affidabile: valuta di accorpare modalità o di usare un test esatto.`
+      : "Tutte le frequenze attese sono almeno 5: l'approssimazione chi-quadro è ragionevole.";
+
+    const reject=p<alpha;
+    const forza=V<0.1?"trascurabile":V<0.3?"debole":V<0.5?"moderata":"forte";
+    $("verdict").innerHTML = reject
+      ? `<div class="verdict"><b>Si rifiuta l'ipotesi di indipendenza.</b> Con χ² = ${f4(chi)} (${df} gdl) e p = ${fp(p)} &lt; α = ${alpha}, i dati non sono compatibili con l'indipendenza tra «${esc(nx)}» e «${esc(nf)}»: le due variabili risultano statisticamente associate. L'intensità dell'associazione, misurata da V = ${f4(V)}, è ${forza}. Le celle con contributo maggiore indicano dove le frequenze osservate si scostano di più da quelle attese.</div>`
+      : `<div class="verdict ok"><b>Non si rifiuta l'ipotesi di indipendenza.</b> Con χ² = ${f4(chi)} (${df} gdl) e p = ${fp(p)} ≥ α = ${alpha}, i dati non forniscono evidenza sufficiente contro l'indipendenza tra «${esc(nx)}» e «${esc(nf)}». Lo scostamento dalle frequenze attese è compatibile con la sola variabilità campionaria (V = ${f4(V)}, associazione ${forza}).</div>`;
+
+    $("out").hidden=false;
+  }catch(err){
+    $("msg").textContent=err.message; $("out").hidden=true;
+  }
+}
+
+/* ---------- esempi ---------- */
+function daConteggi(xs,fs,n){
+  const rows=[];
+  xs.forEach((x,i)=>fs.forEach((f,j)=>{for(let k=0;k<n[i][j];k++)rows.push(x+","+f);}));
+  // rimescolamento deterministico (LCG) per un dataset non ordinato
+  let s=12345;
+  for(let i=rows.length-1;i>0;i--){s=(s*1103515245+12345)%2147483648;const j=s%(i+1);[rows[i],rows[j]]=[rows[j],rows[i]];}
+  return rows.join("\n");
+}
+function esempio1(){
+  $("nx").value="Sistema operativo";$("nf").value="Infezione malware";
+  $("data").value=daConteggi(["Windows","Linux","macOS"],["Sì","No"],[[60,140],[15,185],[25,175]]);
+  analizza();
+}
+function esempio2(){
+  $("nx").value="Turno";$("nf").value="Esito del test";
+  $("data").value=daConteggi(["Mattina","Pomeriggio"],["Superato","Non superato"],[[42,58],[78,122]]);
+  analizza();
+}
+$("run").addEventListener("click",analizza);
+$("ex1").addEventListener("click",esempio1);
+$("ex2").addEventListener("click",esempio2);
+esempio1();
+</script>
+</body>
+</html>
